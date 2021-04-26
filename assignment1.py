@@ -47,9 +47,9 @@ lambda_ = 10 ** -2
 
 # 1-2) weights initialization
 network = {}
-network['W1'] = np.random.normal(0, 1, (X_train.shape[1], num_node_1))
-network['W2'] = np.random.normal(0, 1, (num_node_1, num_node_2))
-network['W3'] = np.random.normal(0, 1, (num_node_2, num_class))
+network['w1'] = np.random.normal(0, 0.01, (X_train.shape[1], num_node_1))
+network['w2'] = np.random.normal(0, 0.01, (num_node_1, num_node_2))
+network['w3'] = np.random.normal(0, 0.01, (num_node_2, num_class))
 
 # network['W1'] = 0.01 * np.random.randn(X_train.shape[1], num_node_1)
 # network['W2'] = 0.01 * np.random.randn(num_node_1, num_node_2)
@@ -72,23 +72,39 @@ for epoch in range(1, epochs+1):
 
     # Training
     for i in range(int(len(X_train) / batch_size)):
-        # X_batch = batch_normalization(X_train[batch_size * i:batch_size * (i + 1), :])
-        X_batch = X_train[batch_size * i:batch_size * (i + 1), :]
+        X_batch = batch_normalization(X_train[batch_size * i:batch_size * (i + 1), :])
+        # X_batch = X_train[batch_size * i:batch_size * (i + 1), :]
         y_batch = one_hot_encoding(y_train[batch_size * i:batch_size * (i + 1)], num_class=10)
-        a3 = feedforward(network, X_batch)
-        z3 = softmax(a3)
-        print(predict(z3))
-        break
-    break
+        # y_batch = y_train[batch_size * i:batch_size * (i + 1)]
+        feedforward(network, X_batch)
+        network['a3'] = softmax(network['z3'])
 
-#         loss =
-#         loss_tr += loss
-#         correct_tr += count_correct()
-#
-#         # GetGradient
-#         = Gradient()
-#
-#         # Weights update
+        loss = cross_entropy(network['a3'], y_batch, network['w1'], network['w2'], network['w2'], lambda_)
+        y_pred = predict(network['z3'])
+        print(y_pred)
+        print(np.argmax(y_batch, axis=1))
+
+        loss_tr += loss
+        correct_tr += count_correct(y_batch, y_pred)
+        print(count_correct(y_batch, y_pred))
+
+        # GetGradient
+        dloss_over_dz3 = -(y_batch - network['a3'])  # error
+        w1_grad, w2_grad, w3_grad = Gradient(X_batch, network, error=dloss_over_dz3)
+
+        # Weights update
+        # print(network['w1'].shape)
+        # print(w1_grad.shape)
+        # print('')
+        # print(network['w2'].shape)
+        # print(w2_grad.shape)
+        # print('')
+        # print(network['w3'].shape)
+        # print(w3_grad.shape)
+        # print('')
+        network['w1'] -= learning_rate * w1_grad
+        network['w2'] -= learning_rate * w2_grad
+        network['w3'] -= learning_rate * w3_grad
 #
 #
 #     # Validation
