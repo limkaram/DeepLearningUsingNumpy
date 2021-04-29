@@ -3,50 +3,6 @@ DEEP LEARNING (Spring, 2021)
 Implementation of cifar-10 data classification using convolutional neural network (CNN)
 '''
 
-import numpy as np
-import matplotlib.pyplot as plt
-
-def unpickle(file):
-    import pickle
-    with open(file, 'rb') as fo:
-        dict = pickle.load(fo, encoding='bytes')
-    return dict
-
-def relu():
-
-
-    return
-
-def softmax():
-
-
-    return
-
-def predict():
-
-
-    return
-
-def count_correct():
-
-
-    return
-
-
-def feedforward():
-
-
-    return
-
-def cross_entropy():
-
-
-    return
-
-def Gradient():
-
-
-    return
 
 
 '''Main'''
