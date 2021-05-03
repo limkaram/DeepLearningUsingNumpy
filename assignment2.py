@@ -13,20 +13,16 @@ def unpickle(file):
         dict = pickle.load(fo, encoding='bytes')
     return dict
 
-
 class Affine:
     def __init__(self, W, b):
         self.W = W
         self.b = b
-
         self.x = None
         self.original_x_shape = None
-        # 가중치와 편향 매개변수의 미분
         self.dW = None
         self.db = None
 
     def forward(self, x):
-        # 텐서 대응
         self.original_x_shape = x.shape
         x = x.reshape(x.shape[0], -1)
         self.x = x
@@ -40,183 +36,8 @@ class Affine:
         self.dW = np.dot(self.x.T, dout)
         self.db = np.sum(dout, axis=0)
 
-        dx = dx.reshape(*self.original_x_shape)  # 입력 데이터 모양 변경(텐서 대응)
+        dx = dx.reshape(*self.original_x_shape)
         return dx
-
-
-class SoftmaxWithLoss:
-    def __init__(self):
-        self.loss = None  # 손실함수
-        self.y = None  # softmax의 출력
-        self.t = None  # 정답 레이블(원-핫 인코딩 형태)
-
-    def forward(self, x, t):
-        self.t = t
-        self.y = softmax(x)
-        self.loss = cross_entropy(self.y, self.t, params['W1'], params['W2'], params['W3'], lambda_)
-
-        return self.loss
-
-    def backward(self, dout=1):
-        batch_size = self.t.shape[0]
-        if self.t.size == self.y.size:  # 정답 레이블이 원-핫 인코딩 형태일 때
-            dx = (self.y - self.t) / batch_size
-        else:
-            dx = self.y.copy()
-            dx[np.arange(batch_size), self.t] -= 1
-            dx = dx / batch_size
-
-        return dx
-
-
-class Relu:
-    def __init__(self):
-        self.mask = None
-
-    def forward(self, x):
-        self.mask = (x <= 0)
-        out = x.copy()
-        out[self.mask] = 0
-
-        return out
-
-    def backward(self, dout):
-        dout[self.mask] = 0
-        dx = dout
-
-        return dx
-
-
-def softmax(Z):
-    output = np.zeros_like(Z)
-    nominator = np.exp(Z)
-    denominator = np.sum(np.exp(Z), axis=1)
-    for i in range(Z.shape[0]):
-        output[i, :] = nominator[i, :] / denominator[i]
-
-    return output
-
-
-def predict(output):
-    predict_labels = np.argmax(output, axis=1)
-
-    return predict_labels
-
-
-def count_correct(label, predict):
-    correct = np.sum(label == predict)
-
-    return correct
-
-def cross_entropy(y, t, w1, w2, w3, lambda_):
-    batch_size = y.shape[0]
-    loss = -np.sum([np.log(y[i, target]) for i, target in enumerate(t)])
-    regularization = lambda_/2*(np.sum(w1**2)+np.sum(w2**2)+np.sum(w3**2))
-
-    return loss + regularization
-
-"*********************** Edit ***************************"
-
-
-def feedforward(x):
-    conv1 = Convolution(params['W1'], params['b1'], conv_param['stride'], conv_param['pad'])
-    relu1 = Relu()
-    pool1 = Pooling(pool_h=2, pool_w=2, stride=2)
-    affine1 = Affine(params['W2'], params['b2'])
-    relu2 = Relu()
-    affine2 = Affine(params['W3'], params['b3'])
-    last_layer = SoftmaxWithLoss()
-
-    conv1_output = conv1.forward(x)
-    relu1_output = relu1.forward(conv1_output)
-    pool1_output = pool1.forward(relu1_output)
-    affine1_output = affine1.forward(pool1_output)
-    relu2_output = relu2.forward(affine1_output)
-    affine2_output = affine2.forward(relu2_output)
-
-    return affine2_output, conv1, relu1, pool1, affine1, relu2, affine2, last_layer
-
-
-# function to compute gradients using back-propagation
-
-
-def dim2to4(x):
-    result = np.zeros((len(x), 3, 32, 32))
-
-    for i in range(x.shape[0]):
-        result[i] = x[i].reshape(3, 32, 32)
-    return result
-
-
-def im2col(input_data, filter_h, filter_w, stride=1, pad=0):
-    N, C, H, W = input_data.shape
-    out_h = (H + 2 * pad - filter_h) // stride + 1
-    out_w = (W + 2 * pad - filter_w) // stride + 1
-
-    img = np.pad(input_data, [(0, 0), (0, 0), (pad, pad), (pad, pad)], 'constant')
-    col = np.zeros((N, C, filter_h, filter_w, out_h, out_w))
-
-    for y in range(filter_h):
-        y_max = y + stride * out_h
-        for x in range(filter_w):
-            x_max = x + stride * out_w
-            col[:, :, y, x, :, :] = img[:, :, y:y_max:stride, x:x_max:stride]
-
-    col = col.transpose(0, 4, 5, 1, 2, 3).reshape(N * out_h * out_w, -1)
-    return col
-
-
-def col2im(col, input_shape, filter_h, filter_w, stride=1, pad=0):
-    N, C, H, W = input_shape
-    out_h = (H + 2 * pad - filter_h) // stride + 1
-    out_w = (W + 2 * pad - filter_w) // stride + 1
-    col = col.reshape(N, out_h, out_w, C, filter_h, filter_w).transpose(0, 3, 4, 5, 1, 2)
-
-    img = np.zeros((N, C, H + 2 * pad + stride - 1, W + 2 * pad + stride - 1))
-    for y in range(filter_h):
-        y_max = y + stride * out_h
-        for x in range(filter_w):
-            x_max = x + stride * out_w
-            img[:, :, y:y_max:stride, x:x_max:stride] += col[:, :, y, x, :, :]
-
-    return img[:, :, pad:H + pad, pad:W + pad]
-
-def Gradient(conv1, relu1, pool1, affine1, relu2, affine2, last_layer, lambda_):
-    """기울기를 구한다(오차역전파법).
-
-    Parameters
-    ----------
-    x : 입력 데이터
-    t : 정답 레이블
-
-    Returns
-    -------
-    각 층의 기울기를 담은 사전(dictionary) 변수
-        grads['W1']、grads['W2']、... 각 층의 가중치
-        grads['b1']、grads['b2']、... 각 층의 편향
-    """
-
-    # backward
-    dout = 1
-    dout = last_layer.backward(dout)
-
-    layers = [conv1, relu1, pool1, affine1, relu2, affine2, last_layer]
-    layers.reverse()
-
-    for layer in layers:
-        dout = layer.backward(dout)
-
-    # 결과 저장
-    grads = {}
-    grads['W1'] = conv1.dW + lambda_ * params['W1']
-    grads['b1'] = conv1.db + lambda_ * params['b1']
-    grads['W2'] = affine1.dW + lambda_ * params['W2']
-    grads['b2'] = affine1.db + lambda_ * params['b2']
-    grads['W3'] = affine2.dW + lambda_ * params['W3']
-    grads['b3'] = affine2.db + lambda_ * params['b3']
-
-    return grads
-
 
 class Convolution:
     def __init__(self, W, b, stride=1, pad=0):
@@ -224,13 +45,9 @@ class Convolution:
         self.b = b
         self.stride = stride
         self.pad = pad
-
-        # 중간 데이터（backward 시 사용）
         self.x = None
         self.col = None
         self.col_W = None
-
-        # 가중치와 편향 매개변수의 기울기
         self.dW = None
         self.db = None
 
@@ -264,7 +81,6 @@ class Convolution:
         dx = col2im(dcol, self.x.shape, FH, FW, self.stride, self.pad)
 
         return dx
-
 
 class Pooling:
     def __init__(self, pool_h, pool_w, stride=1, pad=0):
@@ -306,6 +122,149 @@ class Pooling:
 
         return dx
 
+class SoftmaxWithLoss:
+    def __init__(self):
+        self.loss = None
+        self.y = None
+        self.t = None
+
+    def forward(self, x, t):
+        self.t = t
+        self.y = softmax(x)
+        self.loss = cross_entropy(self.y, self.t, params['W1'], params['W2'], params['W3'], lambda_)
+
+        return self.loss
+
+    def backward(self, dout=1):
+        batch_size = self.t.shape[0]
+        dx = self.y.copy()
+        dx[np.arange(batch_size), self.t] -= 1
+        dx = dx / batch_size
+
+        return dx
+
+class Relu:
+    def __init__(self):
+        self.mask = None
+
+    def forward(self, x):
+        self.mask = (x <= 0)
+        out = x.copy()
+        out[self.mask] = 0
+
+        return out
+
+    def backward(self, dout):
+        dout[self.mask] = 0
+        dx = dout
+
+        return dx
+
+def softmax(Z):
+    output = np.zeros_like(Z)
+    nominator = np.exp(Z)
+    denominator = np.sum(np.exp(Z), axis=1)
+    for i in range(Z.shape[0]):
+        output[i, :] = nominator[i, :] / denominator[i]
+
+    return output
+
+def predict(output):
+    predict_labels = np.argmax(output, axis=1)
+
+    return predict_labels
+
+def count_correct(label, predict):
+    correct = np.sum(label == predict)
+
+    return correct
+
+def cross_entropy(y, t, w1, w2, w3, lambda_):
+    loss = -np.sum([np.log(y[i, target]) for i, target in enumerate(t)])
+    regularization = lambda_/2*(np.sum(w1**2)+np.sum(w2**2)+np.sum(w3**2))
+
+    return loss + regularization
+
+"*********************** Edit ***************************"
+def feedforward(x):
+    conv1 = Convolution(params['W1'], params['b1'], conv_param['stride'], conv_param['pad'])
+    relu1 = Relu()
+    pool1 = Pooling(pool_h=2, pool_w=2, stride=2)
+    affine1 = Affine(params['W2'], params['b2'])
+    relu2 = Relu()
+    affine2 = Affine(params['W3'], params['b3'])
+    last_layer = SoftmaxWithLoss()
+
+    conv1_output = conv1.forward(x)
+    relu1_output = relu1.forward(conv1_output)
+    pool1_output = pool1.forward(relu1_output)
+    affine1_output = affine1.forward(pool1_output)
+    relu2_output = relu2.forward(affine1_output)
+    affine2_output = affine2.forward(relu2_output)
+
+    return affine2_output, conv1, relu1, pool1, affine1, relu2, affine2, last_layer
+
+def dim2to4(x):
+    result = np.zeros((len(x), 3, 32, 32))
+
+    for i in range(x.shape[0]):
+        result[i] = x[i].reshape(3, 32, 32)
+    return result
+
+def im2col(input_data, filter_h, filter_w, stride=1, pad=0):
+    N, C, H, W = input_data.shape
+    out_h = (H + 2 * pad - filter_h) // stride + 1
+    out_w = (W + 2 * pad - filter_w) // stride + 1
+
+    img = np.pad(input_data, [(0, 0), (0, 0), (pad, pad), (pad, pad)], 'constant')
+    col = np.zeros((N, C, filter_h, filter_w, out_h, out_w))
+
+    for y in range(filter_h):
+        y_max = y + stride * out_h
+        for x in range(filter_w):
+            x_max = x + stride * out_w
+            col[:, :, y, x, :, :] = img[:, :, y:y_max:stride, x:x_max:stride]
+
+    col = col.transpose(0, 4, 5, 1, 2, 3).reshape(N * out_h * out_w, -1)
+    return col
+
+
+def col2im(col, input_shape, filter_h, filter_w, stride=1, pad=0):
+    N, C, H, W = input_shape
+    out_h = (H + 2 * pad - filter_h) // stride + 1
+    out_w = (W + 2 * pad - filter_w) // stride + 1
+    col = col.reshape(N, out_h, out_w, C, filter_h, filter_w).transpose(0, 3, 4, 5, 1, 2)
+
+    img = np.zeros((N, C, H + 2 * pad + stride - 1, W + 2 * pad + stride - 1))
+    for y in range(filter_h):
+        y_max = y + stride * out_h
+        for x in range(filter_w):
+            x_max = x + stride * out_w
+            img[:, :, y:y_max:stride, x:x_max:stride] += col[:, :, y, x, :, :]
+
+    return img[:, :, pad:H + pad, pad:W + pad]
+
+def Gradient(conv1, relu1, pool1, affine1, relu2, affine2, last_layer, lambda_):
+    # backward
+    dout = 1
+    dout = last_layer.backward(dout)
+
+    layers = [conv1, relu1, pool1, affine1, relu2, affine2, last_layer]
+    layers.reverse()
+
+    for layer in layers:
+        dout = layer.backward(dout)
+
+    # 결과 저장
+    grads = {}
+    grads['W1'] = conv1.dW + lambda_ * params['W1']
+    grads['b1'] = conv1.db + lambda_ * params['b1']
+    grads['W2'] = affine1.dW + lambda_ * params['W2']
+    grads['b2'] = affine1.db + lambda_ * params['b2']
+    grads['W3'] = affine2.dW + lambda_ * params['W3']
+    grads['b3'] = affine2.db + lambda_ * params['b3']
+
+    return grads
 
 "********************************************************"
 
@@ -344,8 +303,8 @@ print('**********************************')
 
 # 1-1) hyper-parameters setting
 lr = 0.001
-epoch = 50
-batch_size = 100
+epoch = 20
+batch_size = 64
 lambda_ = 10 ** -2
 
 conv_param = {'filter_num': 30, 'filter_size': 5, 'pad': 0, 'stride': 1}
@@ -415,7 +374,6 @@ for epochs in range(epoch):
         params['b2'] -= lr * b2
         params['b3'] -= lr * b3
 
-
     # Validation
     for i in range(int(len(X_val) / batch_size)):
         X_ = X_val[batch_size * i:batch_size * (i + 1)]
@@ -445,8 +403,6 @@ for epochs in range(epoch):
     losses_val.append(loss_val)
     accs_tr.append(accuracy_tr)
     accs_val.append(accuracy_val)
-
-
 
 
 ## Show results
